@@ -7,6 +7,306 @@ import threading
 import queue
 import simpleaudio as sa
 from PIL import Image, ImageDraw, ImageFont
+import hashlib
+
+# ========== LOGIN SYSTEM ==========
+# Initialize session state for login
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+if 'username' not in st.session_state:
+    st.session_state.username = ""
+
+# User credentials (in production, use a database)
+# Password is hashed using SHA-256
+USERS = {
+    "user1": hashlib.sha256("password1".encode()).hexdigest(),
+    "user2": hashlib.sha256("password2".encode()).hexdigest(),
+    "user3": hashlib.sha256("password3".encode()).hexdigest(),
+}
+
+def hash_password(password):
+    """Hash password using SHA-256"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def verify_login(username, password):
+    """Verify username and password"""
+    if username in USERS:
+        return USERS[username] == hash_password(password)
+    return False
+
+def login_page():
+    """Display premium dark-themed login page with neon accents"""
+    st.markdown("""
+        <style>
+        /* Import Lora font from Google Fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&display=swap');
+        
+        /* Dark premium background */
+        .stApp {
+            background: linear-gradient(135deg, #0a0015 0%, #1a0033 50%, #2d1b4e 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* Moving particles layer 1 - fast electrons */
+        .stApp::before {
+            content: "";
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background-image: 
+                radial-gradient(circle, rgba(255, 0, 255, 0.8) 2px, transparent 2px),
+                radial-gradient(circle, rgba(139, 92, 246, 0.6) 1px, transparent 1px),
+                radial-gradient(circle, rgba(192, 132, 252, 0.5) 1.5px, transparent 1.5px);
+            background-size: 200px 200px, 150px 150px, 250px 250px;
+            background-position: 0 0, 50px 50px, 100px 100px;
+            animation: particles-float 20s linear infinite;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.3;
+        }
+        
+        /* Moving particles layer 2 - slow drift */
+        .stApp::after {
+            content: "";
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background-image: 
+                radial-gradient(circle, rgba(255, 0, 255, 0.6) 1.5px, transparent 1.5px),
+                radial-gradient(circle, rgba(139, 92, 246, 0.8) 2px, transparent 2px);
+            background-size: 180px 180px, 220px 220px;
+            background-position: 25px 25px, 75px 75px;
+            animation: particles-float 30s linear infinite reverse;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.25;
+        }
+        
+        @keyframes particles-float {
+            0% {
+                transform: translate(0, 0) rotate(0deg);
+            }
+            100% {
+                transform: translate(-50%, -50%) rotate(360deg);
+            }
+        }
+        
+        /* Sparking effect - random glowing points */
+        @keyframes spark {
+            0%, 100% {
+                opacity: 0;
+                transform: scale(0);
+            }
+            50% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        
+        /* Ensure content is above particles */
+        .stApp > div {
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Add glow effect to particles */
+        /* Login container with dark glassmorphism */
+        .login-box {
+            background: rgba(20, 10, 40, 0.6);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 3rem 2.5rem;
+            border: 2px solid rgba(255, 0, 255, 0.3);
+            margin: 2rem auto;
+            max-width: 480px;
+        }
+        
+        /* Title styling - Lora font */
+        .login-title {
+            color: #ff00ff;
+            font-size: 3rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 0.5rem;
+            letter-spacing: 2px;
+            white-space: nowrap;
+            font-family: 'Lora', serif;
+        }
+        
+        .login-subtitle {
+            color: #c084fc;
+            font-size: 1.1rem;
+            text-align: center;
+            margin-bottom: 2.5rem;
+            font-weight: 400;
+        }
+        
+        /* Input field styling - dark with neon border */
+        .stTextInput > div > div > input {
+            background: rgba(10, 0, 30, 0.8);
+            border: 2px solid rgba(255, 0, 255, 0.4);
+            border-radius: 12px;
+            padding: 1rem 1.2rem;
+            font-size: 1rem;
+            color: #e0e0e0;
+            transition: all 0.3s ease;
+        }
+        
+        .stTextInput > div > div > input:focus {
+            border-color: #ff00ff;
+            background: rgba(10, 0, 30, 0.95);
+        }
+        
+        .stTextInput > div > div > input::placeholder {
+            color: #8b5cf6;
+        }
+        
+        /* Button styling */
+        .stButton > button {
+            background: linear-gradient(135deg, #ff00ff 0%, #8b5cf6 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 1rem 2rem;
+            font-size: 1.2rem;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .stButton > button:hover {
+            transform: translateY(-3px);
+            background: linear-gradient(135deg, #ff00ff 0%, #a855f7 100%);
+        }
+        
+        /* Expander styling */
+        .streamlit-expanderHeader {
+            background: rgba(139, 92, 246, 0.2);
+            border: 1px solid rgba(255, 0, 255, 0.3);
+            border-radius: 10px;
+            color: #c084fc;
+            font-weight: 600;
+        }
+        
+        /* Success/Error messages */
+        .stSuccess {
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid #10b981;
+            border-radius: 12px;
+            color: #6ee7b7;
+        }
+        
+        .stError {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid #ef4444;
+            border-radius: 12px;
+            color: #fca5a5;
+        }
+        
+        .stWarning {
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid #f59e0b;
+            border-radius: 12px;
+            color: #fcd34d;
+        }
+        
+        /* Demo credentials box */
+        .demo-creds {
+            background: rgba(139, 92, 246, 0.1);
+            border: 1px solid rgba(255, 0, 255, 0.2);
+            border-radius: 12px;
+            padding: 1.5rem;
+            color: #c084fc;
+        }
+        
+        /* Medical icon - static without animation */
+        .medical-icon {
+            font-size: 5rem;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        /* Form section header */
+        .stMarkdown h4 {
+            color: #ff00ff;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # Center column layout
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        # Title with Rockwell font
+        st.markdown('<h1 class="login-title">NEUROREHAB AI</h1>', unsafe_allow_html=True)
+        st.markdown('<p class="login-subtitle">⚡ AI-Powered Therapy Application ⚡</p>', unsafe_allow_html=True)
+        
+        # Login form
+        with st.form("login_form"):
+            st.markdown("#### 🔐 SECURE ACCESS")
+            username = st.text_input("👤 Username", placeholder="Enter username", label_visibility="collapsed")
+            st.markdown("") # spacing
+            password = st.text_input("🔒 Password", type="password", placeholder="Enter password", label_visibility="collapsed")
+            
+            st.markdown("") # spacing
+            submit = st.form_submit_button("🚀 INITIALIZE SYSTEM", use_container_width=True)
+            
+            if submit:
+                if username and password:
+                    if verify_login(username, password):
+                        st.session_state.logged_in = True
+                        st.session_state.username = username
+                        st.success(f"✅ Access Granted • Welcome {username.upper()}")
+                        time.sleep(0.8)
+                        st.rerun()
+                    else:
+                        st.error("❌ Access Denied • Invalid Credentials")
+                else:
+                    st.warning("⚠️ All Fields Required")
+        
+        # Demo credentials
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.expander("🔑 Demo Access Codes"):
+            st.markdown("""
+            <div class="demo-creds">
+            
+            **👤 USER 1**  
+            Username: `user1` | Password: `password1`
+            
+            **👤 USER 2**  
+            Username: `user2` | Password: `password2`
+            
+            **👤 USER 3**  
+            Username: `user3` | Password: `password3`
+            
+            </div>
+            """, unsafe_allow_html=True)
+
+def logout():
+    """Logout function"""
+    st.session_state.logged_in = False
+    st.session_state.username = ""
+    st.rerun()
+
+# Check if user is logged in
+if not st.session_state.logged_in:
+    login_page()
+    st.stop()
+
+# ========== LOGGED IN - SHOW MAIN APP ==========
+
+# Add logout button in sidebar
+with st.sidebar:
+    st.markdown(f"### 👤 Logged in as: **{st.session_state.username}**")
+    if st.button("🚪 Logout", use_container_width=True):
+        logout()
+    st.markdown("---")
 
 # ========== AUDIO QUEUE (NO OVERLAP) ==========
 audio_queue = queue.Queue()
@@ -73,9 +373,158 @@ def create_progress_circle(progress):
     )
     return img
 
+# ========== MAIN APP STYLING ==========
+st.markdown("""
+    <style>
+    /* Dark premium background for main app */
+    .stApp {
+        background: linear-gradient(135deg, #0a0015 0%, #1a0033 50%, #2d1b4e 100%);
+    }
+    
+    /* Header styling */
+    h1 {
+        color: #ff00ff;
+        font-weight: 900;
+        text-align: center;
+        padding: 1.5rem 0;
+        letter-spacing: 2px;
+        font-size: 3rem;
+    }
+    
+    h2, h3 {
+        color: #c084fc;
+    }
+    
+    /* Card-like containers */
+    .stSelectbox, .stRadio {
+        background: rgba(20, 10, 40, 0.6);
+        padding: 1.5rem;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 0, 255, 0.3);
+        margin-bottom: 1.5rem;
+    }
+    
+    /* Select box and radio button text */
+    .stSelectbox label, .stRadio label {
+        color: #c084fc !important;
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+    
+    /* Dropdown styling */
+    .stSelectbox > div > div {
+        background: rgba(10, 0, 30, 0.8);
+        border: 2px solid rgba(255, 0, 255, 0.4);
+        border-radius: 10px;
+        color: #e0e0e0;
+    }
+    
+    /* Success message */
+    .stSuccess {
+        background: rgba(16, 185, 129, 0.2);
+        border: 1px solid #10b981;
+        color: #6ee7b7;
+        border-radius: 12px;
+        padding: 1rem;
+        font-weight: 600;
+    }
+    
+    /* Sidebar with dark gradient */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #1a0033 0%, #2d1b4e 100%);
+        border-right: 2px solid rgba(255, 0, 255, 0.3);
+    }
+    
+    [data-testid="stSidebar"] * {
+        color: #c084fc !important;
+    }
+    
+    [data-testid="stSidebar"] h3 {
+        color: #ff00ff !important;
+    }
+    
+    /* Button styling */
+    .stButton > button {
+        background: linear-gradient(135deg, #ff00ff 0%, #8b5cf6 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        padding: 0.8rem 2rem;
+        font-weight: 700;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-3px);
+    }
+    
+    /* Checkbox styling */
+    .stCheckbox {
+        background: rgba(20, 10, 40, 0.6);
+        padding: 2rem;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 0, 255, 0.3);
+    }
+    
+    .stCheckbox label {
+        color: #ff00ff !important;
+        font-weight: 700;
+        font-size: 1.3rem;
+    }
+    
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        background: rgba(139, 92, 246, 0.2);
+        border: 1px solid rgba(255, 0, 255, 0.3);
+        border-radius: 12px;
+        font-weight: 600;
+        color: #c084fc;
+    }
+    
+    /* Slider styling */
+    .stSlider {
+        background: rgba(20, 10, 40, 0.6);
+        padding: 1rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 0, 255, 0.2);
+    }
+    
+    .stSlider label {
+        color: #c084fc !important;
+        font-weight: 600;
+    }
+    
+    .stSlider > div > div > div > div {
+        background: linear-gradient(135deg, #ff00ff 0%, #8b5cf6 100%);
+    }
+    
+    /* Info boxes */
+    .stInfo {
+        background: rgba(139, 92, 246, 0.2);
+        border: 1px solid rgba(255, 0, 255, 0.3);
+        border-radius: 12px;
+        color: #c084fc;
+    }
+    
+    /* Horizontal rule */
+    hr {
+        border-color: rgba(255, 0, 255, 0.3);
+        box-shadow: 0 0 10px rgba(255, 0, 255, 0.2);
+    }
+    
+    /* General text color */
+    p, span, div {
+        color: #e0e0e0;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # ========== UI HEADER ==========
-st.title("AI Assisted Neuro-Rehabilitation System")
-st.subheader("Spinal Reflex Palm Therapy – Press • Hold • Release")
+st.markdown("# NEUROREHAB AI SYSTEM")
+st.markdown("### ⚡ Spinal Reflex Palm Therapy • Press • Hold • Release ⚡")
+st.markdown("---")
 
 # ---- Condition → Spinal Region Mapping (C1 to Coccyx) ----
 condition = st.selectbox(
@@ -119,7 +568,69 @@ exercise_plan = {
 
 plan = exercise_plan[condition]
 spinal_region = plan["region"]          # e.g. "Cervical (C1–C7)"
-target_reps = plan["reps"]
+default_reps = plan["reps"]
+
+# ---- Customizable Reps Per Region ----
+with st.expander("🎯 Customize Reps for Each Pressure Point (Optional)", expanded=False):
+    st.markdown("**Adjust the number of repetitions for each spinal region according to patient needs:**")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        cervical_reps = st.slider(
+            "Cervical (C1-C7) Reps",
+            min_value=1,
+            max_value=20,
+            value=7,
+            help="Number of reps for cervical spine reflex points"
+        )
+        
+        thoracic_reps = st.slider(
+            "Thoracic (T1-T12) Reps",
+            min_value=1,
+            max_value=25,
+            value=12,
+            help="Number of reps for thoracic spine reflex points"
+        )
+        
+        lumbar_reps = st.slider(
+            "Lumbar (L1-L5) Reps",
+            min_value=1,
+            max_value=20,
+            value=5,
+            help="Number of reps for lumbar spine reflex points"
+        )
+    
+    with col2:
+        sacrum_reps = st.slider(
+            "Sacrum (S1-S5) Reps",
+            min_value=1,
+            max_value=20,
+            value=5,
+            help="Number of reps for sacral reflex points"
+        )
+        
+        coccyx_reps = st.slider(
+            "Coccyx (Co1-Co4) Reps",
+            min_value=1,
+            max_value=15,
+            value=4,
+            help="Number of reps for coccyx reflex points"
+        )
+    
+    st.info("💡 These custom reps are applied automatically based on your selected spinal region.")
+
+# Map custom reps to each region
+custom_reps_map = {
+    "Cervical (C1–C7)": cervical_reps,
+    "Thoracic (T1–T12)": thoracic_reps,
+    "Lumbar (L1–L5)": lumbar_reps,
+    "Sacrum": sacrum_reps,
+    "Coccyx": coccyx_reps,
+}
+
+# Use custom reps for the selected spinal region
+target_reps = custom_reps_map.get(spinal_region, default_reps)
 
 hand_choice = st.radio(
     "Select reflex therapy hand (the palm where reflex point is highlighted):",
@@ -220,29 +731,61 @@ def compute_spine_points_for_region(hand, img):
     cervical_path = [thumb_tip, thumb_mid, thumb_base]
     cervical_pts = interpolate_segment(cervical_path, 7)
 
-    # ----- Thoracic: band under thumb toward wrist (12 virtual points: T1–T12)
+        # ----- Thoracic: band under thumb toward wrist (12 virtual points: T1–T12)
     t1 = thumb_base
     t2 = 0.7 * thumb_base + 0.3 * wrist
     t3 = 0.4 * thumb_base + 0.6 * wrist
     thoracic_path = [t1, t2, t3]
     thoracic_pts = interpolate_segment(thoracic_path, 12)
 
-    # ----- Lumbar: placeholder center path (L1–L5) – real path computed dynamically
-    lumbar_anchor = 0.7 * ring_base + 0.3 * wrist
-    lumbar_pts = interpolate_segment([lumbar_anchor, lumbar_anchor], 5)
+    # LAST thoracic point = lumbar start base
+    thoracic_end = np.array(thoracic_pts[-1], dtype=float)
 
-    # ----- Sacrum: extreme right palm base under pinky, near wrist (S1–S5)
-    # Inside palm, not outside.
-    sacrum_start = 0.85 * wrist + 0.15 * pinky_base  # near wrist, slightly toward pinky
-    sacrum_end = sacrum_start + 0.10 * (wrist - pinky_base)  # small drop
+    # ----- Lumbar: starts deeper and extends to right edge below pinky at wrist (L1–L5)
+    # Start from deep position near center of wrist
+    lumbar_start = mid_base + 0.85 * (wrist - mid_base)
+    
+    # End point: right edge of palm below pinky finger at wrist level
+    # Move toward pinky base and then down to wrist level, then extend to edge
+    pinky_to_wrist_direction = wrist - pinky_base
+    lumbar_end = pinky_base + 0.95 * pinky_to_wrist_direction  # very close to wrist on pinky side
+    # Shift slightly outward toward palm edge (away from center)
+    outward_shift = (pinky_base - mid_base) * 0.2  # shift toward edge
+    lumbar_end = lumbar_end + outward_shift
+
+    lumbar_path = [lumbar_start, lumbar_end]
+    lumbar_pts = interpolate_segment(lumbar_path, 5)
+
+    # LAST lumbar point = sacrum start
+    lumbar_end_final = np.array(lumbar_pts[-1], dtype=float)
+
+    # ----- Sacrum: endpoint is where S2 appears (S1–S5)
+    sacrum_start = lumbar_end_final  # continue from where lumbar ends (this is S1)
+    
+    # Calculate endpoint so that when interpolated into 5 points,
+    # the second point (S2) is at the endpoint position
+    # We need a very small distance - the endpoint should be close to start
+    # Direction: slightly down and toward edge
+    edge_direction = wrist - pinky_base
+    # Very small movement - just enough for S2 to be visible
+    sacrum_end = sacrum_start + 0.015 * edge_direction  # tiny movement down
+    
     sacrum_path = [sacrum_start, sacrum_end]
     sacrum_pts = interpolate_segment(sacrum_path, 5)
 
-    # ----- Coccyx: below sacrum (Co1–Co4), still within palm area
-    coccyx_start = sacrum_end + 0.08 * (wrist - pinky_base)
-    coccyx_end   = sacrum_end + 0.18 * (wrist - pinky_base)
+    # LAST sacrum point = coccyx start
+    sacrum_end_final = np.array(sacrum_pts[-1], dtype=float)
+
+    # ----- Coccyx: continues from sacrum endpoint (Co1–Co4)
+    coccyx_start = sacrum_end_final
+    
+    # End point: continue with similar small distance
+    edge_direction = wrist - pinky_base
+    coccyx_end = coccyx_start + 0.015 * edge_direction  # similar tiny movement
+
     coccyx_path = [coccyx_start, coccyx_end]
     coccyx_pts = interpolate_segment(coccyx_path, 4)
+
 
     to_int = lambda arr: [(int(x), int(y)) for (x, y) in arr]
 
@@ -267,19 +810,20 @@ def draw_spine_reflex_point(img, spinal_region, hand, rep_index):
         return np.array([lm.x * w, lm.y * h], dtype=float)
 
     if spinal_region == "Lumbar (L1–L5)":
-        ring_base  = LM_vec_abs(13)
+        # Get landmarks
         wrist      = LM_vec_abs(0)
+        mid_base   = LM_vec_abs(9)
         pinky_base = LM_vec_abs(17)
-
-        # Starting lumbar: below ring finger, near wrist (on palm)
-        lumbar_start = ring_base + 0.9 * (wrist - ring_base)
-
-        # Target external anchor toward pinky side (virtual end point)
-        external_anchor = pinky_base + 0.25 * (pinky_base - wrist)
-
-        # Gradual progression in first 3 reps
-        shift_factor = min(rep_index / 3.0, 1.0)
-        lumbar_end = lumbar_start + shift_factor * (external_anchor - lumbar_start)
+        
+        # Lumbar starts from deep position near center of wrist
+        lumbar_start = mid_base + 0.85 * (wrist - mid_base)
+        
+        # End point: right edge of palm below pinky finger at wrist level
+        pinky_to_wrist_direction = wrist - pinky_base
+        lumbar_end = pinky_base + 0.95 * pinky_to_wrist_direction  # very close to wrist on pinky side
+        # Shift slightly outward toward palm edge
+        outward_shift = (pinky_base - mid_base) * 0.2
+        lumbar_end = lumbar_end + outward_shift
 
         lumbar_pts = interpolate_segment([lumbar_start, lumbar_end], 5)
         points = [(int(x), int(y)) for (x, y) in lumbar_pts]
