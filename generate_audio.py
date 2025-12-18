@@ -1,13 +1,17 @@
 from gtts import gTTS
-from pydub import AudioSegment
-import simpleaudio as sa
+import subprocess
 
 def make(file, text):
+    mp3_file = file.replace(".wav", ".mp3")
+    wav_file = file
     tts = gTTS(text=text, lang='en', slow=False)
-    tts.save(file.replace(".wav", ".mp3"))
-    audio = AudioSegment.from_mp3(file.replace(".wav", ".mp3"))
-    audio.export(file, format="wav")
-    print(f"Generated: {file}")
+    tts.save(mp3_file)
+    print(f"Generated: {mp3_file}")
+    
+    # Convert MP3 to WAV using ffmpeg
+    subprocess.run(['ffmpeg', '-i', mp3_file, '-y', wav_file], 
+                   capture_output=True, check=True)
+    print(f"Converted: {wav_file}")
 
 sounds = {
     "press.wav": "Press now",
@@ -18,7 +22,7 @@ sounds = {
     "1.wav": "One",
     "release.wav": "Release slowly",
     "goodjob.wav": "Good job, next repetition",
-    "ding.wav": "ding"
+    "ding.wav": "done"
 }
 
 for file, text in sounds.items():

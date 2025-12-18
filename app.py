@@ -7,305 +7,21 @@ import threading
 import queue
 import simpleaudio as sa
 from PIL import Image, ImageDraw, ImageFont
-import hashlib
+import login_component
 
-# ========== LOGIN SYSTEM ==========
-# Initialize session state for login
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-if 'username' not in st.session_state:
-    st.session_state.username = ""
-
-# User credentials (in production, use a database)
-# Password is hashed using SHA-256
-USERS = {
-    "user1": hashlib.sha256("password1".encode()).hexdigest(),
-    "user2": hashlib.sha256("password2".encode()).hexdigest(),
-    "user3": hashlib.sha256("password3".encode()).hexdigest(),
-}
-
-def hash_password(password):
-    """Hash password using SHA-256"""
-    return hashlib.sha256(password.encode()).hexdigest()
-
-def verify_login(username, password):
-    """Verify username and password"""
-    if username in USERS:
-        return USERS[username] == hash_password(password)
-    return False
-
-def login_page():
-    """Display premium dark-themed login page with neon accents"""
-    st.markdown("""
-        <style>
-        /* Import Lora font from Google Fonts */
-        @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&display=swap');
-        
-        /* Dark premium background */
-        .stApp {
-            background: linear-gradient(135deg, #0a0015 0%, #1a0033 50%, #2d1b4e 100%);
-            position: relative;
-            overflow: hidden;
-        }
-        
-        /* Moving particles layer 1 - fast electrons */
-        .stApp::before {
-            content: "";
-            position: fixed;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background-image: 
-                radial-gradient(circle, rgba(255, 0, 255, 0.8) 2px, transparent 2px),
-                radial-gradient(circle, rgba(139, 92, 246, 0.6) 1px, transparent 1px),
-                radial-gradient(circle, rgba(192, 132, 252, 0.5) 1.5px, transparent 1.5px);
-            background-size: 200px 200px, 150px 150px, 250px 250px;
-            background-position: 0 0, 50px 50px, 100px 100px;
-            animation: particles-float 20s linear infinite;
-            pointer-events: none;
-            z-index: 0;
-            opacity: 0.3;
-        }
-        
-        /* Moving particles layer 2 - slow drift */
-        .stApp::after {
-            content: "";
-            position: fixed;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background-image: 
-                radial-gradient(circle, rgba(255, 0, 255, 0.6) 1.5px, transparent 1.5px),
-                radial-gradient(circle, rgba(139, 92, 246, 0.8) 2px, transparent 2px);
-            background-size: 180px 180px, 220px 220px;
-            background-position: 25px 25px, 75px 75px;
-            animation: particles-float 30s linear infinite reverse;
-            pointer-events: none;
-            z-index: 0;
-            opacity: 0.25;
-        }
-        
-        @keyframes particles-float {
-            0% {
-                transform: translate(0, 0) rotate(0deg);
-            }
-            100% {
-                transform: translate(-50%, -50%) rotate(360deg);
-            }
-        }
-        
-        /* Sparking effect - random glowing points */
-        @keyframes spark {
-            0%, 100% {
-                opacity: 0;
-                transform: scale(0);
-            }
-            50% {
-                opacity: 1;
-                transform: scale(1);
-            }
-        }
-        
-        /* Ensure content is above particles */
-        .stApp > div {
-            position: relative;
-            z-index: 1;
-        }
-        
-        /* Add glow effect to particles */
-        /* Login container with dark glassmorphism */
-        .login-box {
-            background: rgba(20, 10, 40, 0.6);
-            backdrop-filter: blur(20px);
-            border-radius: 24px;
-            padding: 3rem 2.5rem;
-            border: 2px solid rgba(255, 0, 255, 0.3);
-            margin: 2rem auto;
-            max-width: 480px;
-        }
-        
-        /* Title styling - Lora font */
-        .login-title {
-            color: #ff00ff;
-            font-size: 3rem;
-            font-weight: 700;
-            text-align: center;
-            margin-bottom: 0.5rem;
-            letter-spacing: 2px;
-            white-space: nowrap;
-            font-family: 'Lora', serif;
-        }
-        
-        .login-subtitle {
-            color: #c084fc;
-            font-size: 1.1rem;
-            text-align: center;
-            margin-bottom: 2.5rem;
-            font-weight: 400;
-        }
-        
-        /* Input field styling - dark with neon border */
-        .stTextInput > div > div > input {
-            background: rgba(10, 0, 30, 0.8);
-            border: 2px solid rgba(255, 0, 255, 0.4);
-            border-radius: 12px;
-            padding: 1rem 1.2rem;
-            font-size: 1rem;
-            color: #e0e0e0;
-            transition: all 0.3s ease;
-        }
-        
-        .stTextInput > div > div > input:focus {
-            border-color: #ff00ff;
-            background: rgba(10, 0, 30, 0.95);
-        }
-        
-        .stTextInput > div > div > input::placeholder {
-            color: #8b5cf6;
-        }
-        
-        /* Button styling */
-        .stButton > button {
-            background: linear-gradient(135deg, #ff00ff 0%, #8b5cf6 100%);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            padding: 1rem 2rem;
-            font-size: 1.2rem;
-            font-weight: 700;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        .stButton > button:hover {
-            transform: translateY(-3px);
-            background: linear-gradient(135deg, #ff00ff 0%, #a855f7 100%);
-        }
-        
-        /* Expander styling */
-        .streamlit-expanderHeader {
-            background: rgba(139, 92, 246, 0.2);
-            border: 1px solid rgba(255, 0, 255, 0.3);
-            border-radius: 10px;
-            color: #c084fc;
-            font-weight: 600;
-        }
-        
-        /* Success/Error messages */
-        .stSuccess {
-            background: rgba(16, 185, 129, 0.2);
-            border: 1px solid #10b981;
-            border-radius: 12px;
-            color: #6ee7b7;
-        }
-        
-        .stError {
-            background: rgba(239, 68, 68, 0.2);
-            border: 1px solid #ef4444;
-            border-radius: 12px;
-            color: #fca5a5;
-        }
-        
-        .stWarning {
-            background: rgba(245, 158, 11, 0.2);
-            border: 1px solid #f59e0b;
-            border-radius: 12px;
-            color: #fcd34d;
-        }
-        
-        /* Demo credentials box */
-        .demo-creds {
-            background: rgba(139, 92, 246, 0.1);
-            border: 1px solid rgba(255, 0, 255, 0.2);
-            border-radius: 12px;
-            padding: 1.5rem;
-            color: #c084fc;
-        }
-        
-        /* Medical icon - static without animation */
-        .medical-icon {
-            font-size: 5rem;
-            text-align: center;
-            margin-bottom: 1.5rem;
-        }
-        
-        /* Form section header */
-        .stMarkdown h4 {
-            color: #ff00ff;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    # Center column layout
-    col1, col2, col3 = st.columns([1, 2, 1])
-    
-    with col2:
-        # Title with Rockwell font
-        st.markdown('<h1 class="login-title">NEUROREHAB AI</h1>', unsafe_allow_html=True)
-        st.markdown('<p class="login-subtitle">⚡ AI-Powered Therapy Application ⚡</p>', unsafe_allow_html=True)
-        
-        # Login form
-        with st.form("login_form"):
-            st.markdown("#### 🔐 SECURE ACCESS")
-            username = st.text_input("👤 Username", placeholder="Enter username", label_visibility="collapsed")
-            st.markdown("") # spacing
-            password = st.text_input("🔒 Password", type="password", placeholder="Enter password", label_visibility="collapsed")
-            
-            st.markdown("") # spacing
-            submit = st.form_submit_button("🚀 INITIALIZE SYSTEM", use_container_width=True)
-            
-            if submit:
-                if username and password:
-                    if verify_login(username, password):
-                        st.session_state.logged_in = True
-                        st.session_state.username = username
-                        st.success(f"✅ Access Granted • Welcome {username.upper()}")
-                        time.sleep(0.8)
-                        st.rerun()
-                    else:
-                        st.error("❌ Access Denied • Invalid Credentials")
-                else:
-                    st.warning("⚠️ All Fields Required")
-        
-        # Demo credentials
-        st.markdown("<br>", unsafe_allow_html=True)
-        with st.expander("🔑 Demo Access Codes"):
-            st.markdown("""
-            <div class="demo-creds">
-            
-            **👤 USER 1**  
-            Username: `user1` | Password: `password1`
-            
-            **👤 USER 2**  
-            Username: `user2` | Password: `password2`
-            
-            **👤 USER 3**  
-            Username: `user3` | Password: `password3`
-            
-            </div>
-            """, unsafe_allow_html=True)
-
-def logout():
-    """Logout function"""
-    st.session_state.logged_in = False
-    st.session_state.username = ""
-    st.rerun()
 
 # Check if user is logged in
-if not st.session_state.logged_in:
-    login_page()
+if not st.session_state.get('logged_in', False):
+    login_component.login_page()
     st.stop()
 
 # ========== LOGGED IN - SHOW MAIN APP ==========
 
 # Add logout button in sidebar
 with st.sidebar:
-    st.markdown(f"### 👤 Logged in as: **{st.session_state.username}**")
-    if st.button("🚪 Logout", use_container_width=True):
-        logout()
+    st.markdown(f"### 👤 Logged in as: **{st.session_state.get('username', '')}**")
+    if st.button("Logout", use_container_width=True):
+        login_component.logout()
     st.markdown("---")
 
 # ========== AUDIO QUEUE (NO OVERLAP) ==========
@@ -443,6 +159,11 @@ st.markdown("""
         color: #ff00ff !important;
     }
     
+    /* Ensure Sidebar Button Text is Pure White */
+    [data-testid="stSidebar"] .stButton > button {
+        color: #ffffff !important;
+    }
+    
     /* Button styling */
     .stButton > button {
         background: linear-gradient(135deg, #ff00ff 0%, #8b5cf6 100%);
@@ -523,7 +244,7 @@ st.markdown("""
 
 # ========== UI HEADER ==========
 st.markdown("# NEUROREHAB AI SYSTEM")
-st.markdown("### ⚡ Spinal Reflex Palm Therapy • Press • Hold • Release ⚡")
+st.markdown("### Spinal Reflex Palm Therapy • Press • Hold • Release")
 st.markdown("---")
 
 # ---- Condition → Spinal Region Mapping (C1 to Coccyx) ----
@@ -571,7 +292,7 @@ spinal_region = plan["region"]          # e.g. "Cervical (C1–C7)"
 default_reps = plan["reps"]
 
 # ---- Customizable Reps Per Region ----
-with st.expander("🎯 Customize Reps for Each Pressure Point (Optional)", expanded=False):
+with st.expander("Customize Reps for Each Pressure Point (Optional)", expanded=False):
     st.markdown("**Adjust the number of repetitions for each spinal region according to patient needs:**")
     
     col1, col2 = st.columns(2)
