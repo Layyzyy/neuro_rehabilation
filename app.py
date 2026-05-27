@@ -826,6 +826,20 @@ else:
     let pulseRadius = 22;
     let pulseDirection = 1;
     let activeTimers = [];
+    function scheduleTimer(callback, delay) {
+      const timer = setTimeout(() => {
+        activeTimers = activeTimers.filter(t => t !== timer);
+        callback();
+      }, delay);
+      activeTimers.push(timer);
+      return timer;
+    }
+    function clearAllTimers() {
+      for (const timer of activeTimers) {
+        clearTimeout(timer);
+      }
+      activeTimers = [];
+    }
     
     const config = window.CONFIG;
     const targetReps = config.target_reps;
@@ -833,7 +847,7 @@ else:
     const spinalRegion = config.spinal_region;
     const PRESS_TH = config.PRESS_TH;
     const RELEASE_TH = config.RELEASE_TH;
-    const STABILITY_TIME = 0.25;
+    const STABILITY_TIME = 0.10; // Reduced from 0.25s for snappier, more robust trigger with landmark jitter
 
     // Load Audio Files
     const audio = {};
@@ -892,7 +906,10 @@ else:
             modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
           },
           runningMode: "video",
-          numHands: 2
+          numHands: 2,
+          minHandDetectionConfidence: 0.3,
+          minHandPresenceConfidence: 0.3,
+          minTrackingConfidence: 0.3
         });
         
         if (title) title.innerText = "REQUESTING WEBCAM ACCESS...";
@@ -1037,7 +1054,7 @@ else:
     }
 
     function runCountdownJS() {
-      activeTimers = [];
+      clearAllTimers();
       updateStatusBadge("HOLD STILL...", "neon-yellow");
       safeSetText("instructionsText", "Keep your pressing finger steady at the reflex point.");
       
@@ -1046,35 +1063,67 @@ else:
       const holdDurationMs = HOLD_TIME * 1000;
       const startDelay = Math.max(1000, holdDurationMs * 0.4); // Allow hold3sec to start playing
       
-      activeTimers.push(setTimeout(() => {
+      scheduleTimer(() => {
         playAudio("3");
         updateStatusBadge("COUNTDOWN: 3", "neon-yellow");
-      }, startDelay));
+      }, startDelay);
       
-      activeTimers.push(setTimeout(() => {
+      scheduleTimer(() => {
         playAudio("2");
         updateStatusBadge("COUNTDOWN: 2", "neon-yellow");
-      }, startDelay + holdDurationMs / 3));
+      }, startDelay + holdDurationMs / 3);
       
-      activeTimers.push(setTimeout(() => {
+      scheduleTimer(() => {
         playAudio("1");
         updateStatusBadge("COUNTDOWN: 1", "neon-yellow");
-      }, startDelay + (holdDurationMs * 2) / 3));
+      }, startDelay + (holdDurationMs * 2) / 3);
       
-      activeTimers.push(setTimeout(() => {
+      scheduleTimer(() => {
         playAudio("release");
         stage = "waiting_release";
         trackingLossTimer = null; // Reset for release phase
         updateStatusBadge("RELEASE NOW!", "neon-cyan");
         safeSetText("instructionsText", "Now release your finger from the palm reflex point.");
-      }, startDelay + holdDurationMs));
+      }, startDelay + holdDurationMs);
     }
 
     function cancelCountdownJS() {
-      for (const timer of activeTimers) {
-        clearTimeout(timer);
+      clearAllTimers();
+    }
+
+    function triggerReleaseSuccess() {
+      clearAllTimers();
+      stage = "success_delay";
+      trackingLossTimer = null;
+      releaseTimer = null;
+      pressTimer = null;
+      
+      playAudio("ding");
+      
+      // Sequence the congrats audio to prevent overlapping
+      scheduleTimer(() => {
+        playAudio("goodjob");
+      }, 600);
+      
+      count++;
+      updateRepsCount(count);
+      
+      if (count >= targetReps) {
+        scheduleTimer(() => {
+          stage = "completed";
+          updateStatusBadge("COMPLETED!", "neon-green");
+          safeSetText("instructionsText", "Routine completed successfully! Excellent rehabilitation effort.");
+        }, 1200);
+      } else {
+        updateStatusBadge("GOOD JOB!", "neon-green");
+        safeSetText("instructionsText", "Excellent pressure! Prepare for the next rep.");
+        
+        scheduleTimer(() => {
+          stage = "waiting_press";
+          updateStatusBadge("WAITING FOR PRESS", "neon-magenta");
+          playAudio("press");
+        }, 2500);
       }
-      activeTimers = [];
     }
 
     function interpolateSegment(points, count) {
@@ -1276,6 +1325,10 @@ else:
         }
       }
 
+      if (stage === "success_delay") {
+        return;
+      }
+
       if (results.landmarks && results.landmarks.length >= 2 && results.handedness && results.handedness.length >= 2) {
         trackingLossTimer = null; // Reset tracking loss since hands are detected
         let h1 = results.landmarks[0];
@@ -1336,8 +1389,10 @@ else:
           }
           const referenceHandSize = 0.15;
           const scaleFactor = handSize / referenceHandSize;
-          const effectivePressTh = PRESS_TH * scaleFactor;
-          const effectiveReleaseTh = RELEASE_TH * scaleFactor;
+          
+          // Add fallback floor limits so the target area never gets too small to trigger due to camera distance
+          const effectivePressTh = Math.max(0.045, PRESS_TH * scaleFactor);
+          const effectiveReleaseTh = Math.max(0.075, RELEASE_TH * scaleFactor);
           
           smoothDistance = smoothDistance * (1 - SMOOTH_FACTOR) + dist * SMOOTH_FACTOR;
           updateDistanceUI(smoothDistance, effectivePressTh, effectiveReleaseTh);
@@ -1378,30 +1433,7 @@ else:
             }
           } else if (stage === "waiting_release") {
             if (smoothDistance > effectiveReleaseTh) {
-              playAudio("ding");
-              
-              // Sequence the congrats audio to prevent overlapping
-              setTimeout(() => {
-                playAudio("goodjob");
-              }, 600);
-              
-              count++;
-              updateRepsCount(count);
-              
-              if (count >= targetReps) {
-                stage = "completed";
-                updateStatusBadge("COMPLETED!", "neon-green");
-                safeSetText("instructionsText", "Routine completed successfully! Excellent rehabilitation effort.");
-              } else {
-                stage = "waiting_press";
-                pressTimer = null;
-                updateStatusBadge("WAITING FOR PRESS", "neon-magenta");
-                
-                // Wait for the goodjob audio to play before prompting to press again
-                setTimeout(() => {
-                  playAudio("press");
-                }, 2200);
-              }
+              triggerReleaseSuccess();
             }
           }
         }
@@ -1427,28 +1459,7 @@ else:
           if (trackingLossTimer === null) {
             trackingLossTimer = now;
           } else if (now - trackingLossTimer >= 0.4) { // 400ms sustained tracking loss to count as release
-            playAudio("ding");
-            
-            setTimeout(() => {
-              playAudio("goodjob");
-            }, 600);
-            
-            count++;
-            updateRepsCount(count);
-            
-            trackingLossTimer = null;
-            if (count >= targetReps) {
-              stage = "completed";
-              updateStatusBadge("COMPLETED!", "neon-green");
-              safeSetText("instructionsText", "Routine completed successfully! Excellent rehabilitation effort.");
-            } else {
-              stage = "waiting_press";
-              updateStatusBadge("WAITING FOR PRESS", "neon-magenta");
-              
-              setTimeout(() => {
-                playAudio("press");
-              }, 2200);
-            }
+            triggerReleaseSuccess();
           }
         } else {
           trackingLossTimer = null;
