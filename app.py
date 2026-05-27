@@ -907,9 +907,9 @@ else:
         if (subtitle) {
           let extraMsg = "";
           if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            extraMsg = "\n\nNote: Camera API requires a Secure Context (HTTPS or localhost). If accessing via Network IP address (http://10.x.x.x), please use http://localhost:8501 instead.";
+            extraMsg = "\\n\\nNote: Camera API requires a Secure Context (HTTPS or localhost). If accessing via Network IP address (http://10.x.x.x), please use http://localhost:8501 instead.";
           }
-          subtitle.innerText = "Error initializing camera or audio. Please ensure webcam permissions are enabled and try again.\n\nDetail: " + err.message + extraMsg;
+          subtitle.innerText = "Error initializing camera or audio. Please ensure webcam permissions are enabled and try again.\\n\\nDetail: " + err.message + extraMsg;
         }
       }
     };
