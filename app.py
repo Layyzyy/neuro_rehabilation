@@ -922,25 +922,25 @@ else:
       badge.className = `status-badge ${className}`;
     }
 
-    function updateDistanceUI(dist) {
-      const maxDist = 0.2;
+    function updateDistanceUI(dist, pressTh, releaseTh) {
+      const maxDist = Math.max(0.15, releaseTh * 2.0);
       const percentage = Math.min(100, (dist / maxDist) * 100);
       const fill = document.getElementById("distanceFill");
       
       fill.style.width = `${100 - percentage}%`;
       
-      if (dist < PRESS_TH) {
+      if (dist < pressTh) {
         fill.style.background = '#00ff00';
-      } else if (dist < RELEASE_TH) {
+      } else if (dist < releaseTh) {
         fill.style.background = '#eab308';
       } else {
         fill.style.background = '#ef4444';
       }
       
       const targetMarker = document.getElementById("distanceTarget");
-      targetMarker.style.left = `${(1 - PRESS_TH / maxDist) * 100}%`;
+      targetMarker.style.left = `${(1 - pressTh / maxDist) * 100}%`;
       
-      document.getElementById("distanceValue").innerText = `Alignment dist: ${dist.toFixed(3)} (Min: ${PRESS_TH.toFixed(3)})`;
+      document.getElementById("distanceValue").innerText = `Alignment dist: ${dist.toFixed(3)} (Min: ${pressTh.toFixed(3)})`;
     }
 
     function drawSuccessMessage() {
@@ -1193,18 +1193,34 @@ else:
         }
       }
 
-      if (results.landmarks && results.landmarks.length === 2) {
+      if (results.landmarks && results.landmarks.length >= 2 && results.handedness && results.handedness.length >= 2) {
         let h1 = results.landmarks[0];
         let h2 = results.landmarks[1];
         
         let leftHand = null;
         let rightHand = null;
-        if (h1[0].x < h2[0].x) {
-          leftHand = h1;
-          rightHand = h2;
+        
+        const label1 = results.handedness[0][0].categoryName || results.handedness[0][0].label;
+        const label2 = results.handedness[1][0].categoryName || results.handedness[1][0].label;
+        
+        if (label1 !== label2) {
+          // Mirroring: Physical Right is detected as Left, Physical Left is detected as Right
+          if (label1 === 'Left') {
+            rightHand = h1;
+            leftHand = h2;
+          } else {
+            leftHand = h1;
+            rightHand = h2;
+          }
         } else {
-          leftHand = h2;
-          rightHand = h1;
+          // Fallback: horizontal screen position
+          if (h1[0].x < h2[0].x) {
+            leftHand = h1;
+            rightHand = h2;
+          } else {
+            leftHand = h2;
+            rightHand = h1;
+          }
         }
         
         const targetHand = (handChoice === "Right Hand") ? rightHand : leftHand;
@@ -1225,13 +1241,27 @@ else:
             (activeReflexPoint.y - pressTip.y) ** 2
           );
           
+          let handSize = 0.15;
+          if (targetHand && targetHand[0] && targetHand[9]) {
+            const wrist = targetHand[0];
+            const midBase = targetHand[9];
+            handSize = Math.sqrt(
+              (wrist.x - midBase.x) ** 2 +
+              (wrist.y - midBase.y) ** 2
+            ) || 0.15;
+          }
+          const referenceHandSize = 0.15;
+          const scaleFactor = handSize / referenceHandSize;
+          const effectivePressTh = PRESS_TH * scaleFactor;
+          const effectiveReleaseTh = RELEASE_TH * scaleFactor;
+          
           smoothDistance = smoothDistance * (1 - SMOOTH_FACTOR) + dist * SMOOTH_FACTOR;
-          updateDistanceUI(smoothDistance);
+          updateDistanceUI(smoothDistance, effectivePressTh, effectiveReleaseTh);
           
           const now = performance.now() / 1000;
           
           if (stage === "waiting_press") {
-            if (smoothDistance < PRESS_TH) {
+            if (smoothDistance < effectivePressTh) {
               if (pressTimer === null) {
                 pressTimer = now;
                 updateStatusBadge("STABILIZING...", "neon-yellow");
@@ -1245,7 +1275,7 @@ else:
               document.getElementById("instructionsText").innerText = "Press your index finger to the pulsing green reflex point on your " + handChoice + ".";
             }
           } else if (stage === "countdown_running") {
-            if (smoothDistance > RELEASE_TH) {
+            if (smoothDistance > effectiveReleaseTh) {
               cancelCountdownJS();
               stage = "waiting_press";
               pressTimer = null;
@@ -1253,7 +1283,7 @@ else:
               updateStatusBadge("RELEASED EARLY! PRESS AGAIN", "neon-red");
             }
           } else if (stage === "waiting_release") {
-            if (smoothDistance > RELEASE_TH) {
+            if (smoothDistance > effectiveReleaseTh) {
               playAudio("ding");
               playAudio("goodjob");
               count++;
