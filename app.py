@@ -820,6 +820,7 @@ else:
     let stage = "waiting_press";
     let pressTimer = null;
     let releaseTimer = null;
+    let trackingLossTimer = null;
     let smoothDistance = 1.0;
     const SMOOTH_FACTOR = 0.4;
     let pulseRadius = 22;
@@ -1063,6 +1064,7 @@ else:
       activeTimers.push(setTimeout(() => {
         playAudio("release");
         stage = "waiting_release";
+        trackingLossTimer = null; // Reset for release phase
         updateStatusBadge("RELEASE NOW!", "neon-cyan");
         safeSetText("instructionsText", "Now release your finger from the palm reflex point.");
       }, startDelay + holdDurationMs));
@@ -1275,6 +1277,7 @@ else:
       }
 
       if (results.landmarks && results.landmarks.length >= 2 && results.handedness && results.handedness.length >= 2) {
+        trackingLossTimer = null; // Reset tracking loss since hands are detected
         let h1 = results.landmarks[0];
         let h2 = results.landmarks[1];
         
@@ -1349,6 +1352,7 @@ else:
               } else if (now - pressTimer >= STABILITY_TIME) {
                 stage = "countdown_running";
                 releaseTimer = null;
+                trackingLossTimer = null;
                 runCountdownJS();
               }
             } else {
@@ -1365,6 +1369,7 @@ else:
                 stage = "waiting_press";
                 pressTimer = null;
                 releaseTimer = null;
+                trackingLossTimer = null;
                 playAudio("press");
                 updateStatusBadge("RELEASED EARLY! PRESS AGAIN", "neon-red");
               }
@@ -1407,33 +1412,46 @@ else:
         releaseTimer = null;
         
         if (stage === "countdown_running") {
-          cancelCountdownJS();
-          stage = "waiting_press";
-          playAudio("press");
-        } else if (stage === "waiting_release") {
-          // If they were waiting to release, and they pulled their hand out of view,
-          // that naturally counts as a successful release!
-          playAudio("ding");
-          
-          setTimeout(() => {
-            playAudio("goodjob");
-          }, 600);
-          
-          count++;
-          updateRepsCount(count);
-          
-          if (count >= targetReps) {
-            stage = "completed";
-            updateStatusBadge("COMPLETED!", "neon-green");
-            safeSetText("instructionsText", "Routine completed successfully! Excellent rehabilitation effort.");
-          } else {
+          if (trackingLossTimer === null) {
+            trackingLossTimer = now;
+          } else if (now - trackingLossTimer >= 0.8) { // 800ms sustained tracking loss to cancel
+            cancelCountdownJS();
             stage = "waiting_press";
-            updateStatusBadge("WAITING FOR PRESS", "neon-magenta");
+            pressTimer = null;
+            releaseTimer = null;
+            trackingLossTimer = null;
+            playAudio("press");
+            updateStatusBadge("RELEASED EARLY! PRESS AGAIN", "neon-red");
+          }
+        } else if (stage === "waiting_release") {
+          if (trackingLossTimer === null) {
+            trackingLossTimer = now;
+          } else if (now - trackingLossTimer >= 0.4) { // 400ms sustained tracking loss to count as release
+            playAudio("ding");
             
             setTimeout(() => {
-              playAudio("press");
-            }, 2200);
+              playAudio("goodjob");
+            }, 600);
+            
+            count++;
+            updateRepsCount(count);
+            
+            trackingLossTimer = null;
+            if (count >= targetReps) {
+              stage = "completed";
+              updateStatusBadge("COMPLETED!", "neon-green");
+              safeSetText("instructionsText", "Routine completed successfully! Excellent rehabilitation effort.");
+            } else {
+              stage = "waiting_press";
+              updateStatusBadge("WAITING FOR PRESS", "neon-magenta");
+              
+              setTimeout(() => {
+                playAudio("press");
+              }, 2200);
+            }
           }
+        } else {
+          trackingLossTimer = null;
         }
       }
     }
