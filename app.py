@@ -819,6 +819,7 @@ else:
     let count = 0;
     let stage = "waiting_press";
     let pressTimer = null;
+    let releaseTimer = null;
     let smoothDistance = 1.0;
     const SMOOTH_FACTOR = 0.4;
     let pulseRadius = 22;
@@ -1347,6 +1348,7 @@ else:
                 updateStatusBadge("STABILIZING...", "neon-yellow");
               } else if (now - pressTimer >= STABILITY_TIME) {
                 stage = "countdown_running";
+                releaseTimer = null;
                 runCountdownJS();
               }
             } else {
@@ -1356,11 +1358,18 @@ else:
             }
           } else if (stage === "countdown_running") {
             if (smoothDistance > effectiveReleaseTh) {
-              cancelCountdownJS();
-              stage = "waiting_press";
-              pressTimer = null;
-              playAudio("press");
-              updateStatusBadge("RELEASED EARLY! PRESS AGAIN", "neon-red");
+              if (releaseTimer === null) {
+                releaseTimer = now;
+              } else if (now - releaseTimer >= 0.4) { // 400ms sustained release to prevent jitter triggers
+                cancelCountdownJS();
+                stage = "waiting_press";
+                pressTimer = null;
+                releaseTimer = null;
+                playAudio("press");
+                updateStatusBadge("RELEASED EARLY! PRESS AGAIN", "neon-red");
+              }
+            } else {
+              releaseTimer = null;
             }
           } else if (stage === "waiting_release") {
             if (smoothDistance > effectiveReleaseTh) {
@@ -1395,6 +1404,7 @@ else:
         updateStatusBadge("SHOW BOTH PALMS", "neon-yellow");
         safeSetText("instructionsText", "Hold up both hands in the camera view: one target palm (fully flat) and one pressing hand.");
         pressTimer = null;
+        releaseTimer = null;
         if (stage === "countdown_running") {
           cancelCountdownJS();
           stage = "waiting_press";
