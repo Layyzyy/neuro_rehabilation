@@ -843,8 +843,21 @@ else:
       if (audio[name]) {
         // Stop all other audio to prevent overlapping
         for (const [key, sound] of Object.entries(audio)) {
-          sound.pause();
-          sound.currentTime = 0;
+          try {
+            sound.pause();
+            if (sound.readyState > 0) {
+              sound.currentTime = 0;
+            }
+          } catch (audioErr) {
+            console.log("Failed to pause/reset audio:", key, audioErr);
+          }
+        }
+        try {
+          if (audio[name].readyState > 0) {
+            audio[name].currentTime = 0;
+          }
+        } catch (e) {
+          console.log("Failed to reset currentTime for", name, e);
         }
         audio[name].play().catch(e => console.log("Audio playback failed:", e));
       }
@@ -919,27 +932,49 @@ else:
     };
 
     let lastVideoTime = -1;
+    let tempCanvas = null;
+    let tempCtx = null;
+ 
     function predictLoop() {
       if (video && video.currentTime !== lastVideoTime) {
         lastVideoTime = video.currentTime;
         
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = video.videoWidth;
-        tempCanvas.height = video.videoHeight;
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.translate(tempCanvas.width, 0);
-        tempCtx.scale(-1, 1);
-        tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
-        
-        const results = handLandmarker.detectForVideo(tempCanvas, performance.now());
-        
-        if (canvas && ctx) {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          ctx.drawImage(tempCanvas, 0, 0, canvas.width, canvas.height);
+        if (!tempCanvas) {
+          tempCanvas = document.createElement('canvas');
+        }
+        if (tempCanvas.width !== video.videoWidth || tempCanvas.height !== video.videoHeight) {
+          tempCanvas.width = video.videoWidth;
+          tempCanvas.height = video.videoHeight;
+          tempCtx = tempCanvas.getContext('2d');
         }
         
-        processFrame(results);
+        try {
+          tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+          tempCtx.save();
+          tempCtx.translate(tempCanvas.width, 0);
+          tempCtx.scale(-1, 1);
+          tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+          tempCtx.restore();
+          
+          const results = handLandmarker.detectForVideo(tempCanvas, performance.now());
+          
+          if (canvas && ctx) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(tempCanvas, 0, 0, canvas.width, canvas.height);
+          }
+          
+          processFrame(results);
+        } catch (frameErr) {
+          console.error("Error processing frame:", frameErr);
+          const subtitle = document.getElementById("overlaySubtitle");
+          if (subtitle) {
+            subtitle.innerHTML = `<div style="color:#ff3333; background: rgba(255,0,0,0.15); border: 1px solid #ff3333; padding: 10px; border-radius: 8px; margin-top: 15px; text-align: left; font-family: monospace; font-size: 12px; max-height: 150px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">
+              <strong>Frame Process Error:</strong> ${frameErr.message}<br>
+              <strong>Stack:</strong> ${frameErr.stack}
+            </div>` + subtitle.innerHTML;
+          }
+        }
       }
       requestAnimationFrame(predictLoop);
     }
