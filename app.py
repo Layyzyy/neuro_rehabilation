@@ -1,5 +1,8 @@
+# pyrefly: ignore [missing-import]
 import streamlit as st
+# pyrefly: ignore [missing-import]
 import cv2
+# pyrefly: ignore [missing-import]
 import mediapipe as mp
 import numpy as np
 import time
@@ -617,14 +620,61 @@ if run_camera:
     time.sleep(0.4)
     speak(PRESS_V)
 
-    cap = cv2.VideoCapture(0)
-    mp_hands = mp.solutions.hands
-    hands = mp_hands.Hands(
-        max_num_hands=2,
-        min_detection_confidence=0.88,
-        min_tracking_confidence=0.88,
+    # Download hand_landmarker.task model file if not exists
+    import urllib.request
+    import os
+    MODEL_PATH = "hand_landmarker.task"
+    if not os.path.exists(MODEL_PATH):
+        try:
+            url = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+            urllib.request.urlretrieve(url, MODEL_PATH)
+        except Exception as e:
+            MODEL_PATH = "/tmp/hand_landmarker.task"
+            if not os.path.exists(MODEL_PATH):
+                url = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+                urllib.request.urlretrieve(url, MODEL_PATH)
+
+    from mediapipe.tasks import python
+    from mediapipe.tasks.python import vision
+
+    base_options = python.BaseOptions(model_asset_path=MODEL_PATH)
+    options = vision.HandLandmarkerOptions(
+        base_options=base_options,
+        num_hands=2,
+        min_hand_detection_confidence=0.88,
+        min_hand_presence_confidence=0.88,
+        min_tracking_confidence=0.88
     )
-    mp_draw = mp.solutions.drawing_utils
+    detector = vision.HandLandmarker.create_from_options(options)
+
+    class HandWrapper:
+        def __init__(self, landmarks):
+            self.landmark = landmarks
+
+    HAND_CONNECTIONS = [
+        (0, 1), (1, 2), (2, 3), (3, 4),        # Thumb
+        (0, 5), (5, 6), (6, 7), (7, 8),        # Index
+        (5, 9), (9, 10), (10, 11), (11, 12),   # Middle
+        (9, 13), (13, 14), (14, 15), (15, 16), # Ring
+        (13, 17), (17, 18), (18, 19), (19, 20),# Pinky
+        (0, 17)                                # Palm base
+    ]
+
+    def custom_draw_landmarks(image, hand_wrap):
+        h_dim, w_dim, _ = image.shape
+        # Draw connection lines with violet color matching the premium theme
+        for p1, p2 in HAND_CONNECTIONS:
+            lm1 = hand_wrap.landmark[p1]
+            lm2 = hand_wrap.landmark[p2]
+            pt1 = (int(lm1.x * w_dim), int(lm1.y * h_dim))
+            pt2 = (int(lm2.x * w_dim), int(lm2.y * h_dim))
+            cv2.line(image, pt1, pt2, (246, 92, 139), 2)
+        # Draw joints with pink/magenta color
+        for lm in hand_wrap.landmark:
+            pt = (int(lm.x * w_dim), int(lm.y * h_dim))
+            cv2.circle(image, pt, 4, (255, 0, 255), -1)
+
+    cap = cv2.VideoCapture(0)
 
     count = 0
     stage = "waiting_press"
@@ -639,10 +689,14 @@ if run_camera:
 
         frame = cv2.flip(frame, 1)
         img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = hands.process(img)
+        
+        # Detect using Tasks API
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=img)
+        results = detector.detect(mp_image)
 
-        if results.multi_hand_landmarks and len(results.multi_hand_landmarks) == 2:
-            h1, h2 = results.multi_hand_landmarks
+        if results.hand_landmarks and len(results.hand_landmarks) == 2:
+            h1 = HandWrapper(results.hand_landmarks[0])
+            h2 = HandWrapper(results.hand_landmarks[1])
 
             # Identify left and right by x-coordinate
             if h1.landmark[0].x < h2.landmark[0].x:
@@ -656,8 +710,8 @@ if run_camera:
             pressing_hand = left if target_hand == right else right
 
             # Draw landmarks
-            mp_draw.draw_landmarks(img, target_hand, mp_hands.HAND_CONNECTIONS)
-            mp_draw.draw_landmarks(img, pressing_hand, mp_hands.HAND_CONNECTIONS)
+            custom_draw_landmarks(img, target_hand)
+            custom_draw_landmarks(img, pressing_hand)
 
             # ---- Draw correct vertebra reflex point for this region & rep ----
             cx, cy = draw_spine_reflex_point(img, spinal_region, target_hand, count)
