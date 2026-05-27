@@ -200,6 +200,23 @@ st.markdown("""
         color: #e0e0e0;
     }
     </style>
+    
+    <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onload="
+        (function() {
+            const doc = window.parent.document || window.document;
+            const interval = setInterval(() => {
+                const iframes = doc.querySelectorAll('iframe');
+                for (const iframe of iframes) {
+                    const allow = iframe.getAttribute('allow') || '';
+                    if (!allow.includes('camera')) {
+                        iframe.setAttribute('allow', allow + (allow ? '; ' : '') + 'camera; microphone');
+                        iframe.src = iframe.src;
+                    }
+                }
+            }, 500);
+            setTimeout(() => clearInterval(interval), 10000);
+        })();
+    " style="display:none;">
 """, unsafe_allow_html=True)
 
 # ========== UI HEADER ==========
