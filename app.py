@@ -978,7 +978,7 @@ else:
       const targetMarker = document.getElementById("distanceTarget");
       if (targetMarker) targetMarker.style.left = `${(1 - pressTh / maxDist) * 100}%`;
       
-      safeSetText("distanceValue", `Alignment dist: ${dist.toFixed(3)} (Min: ${pressTh.toFixed(3)})`;
+      safeSetText("distanceValue", `Alignment dist: ${dist.toFixed(3)} (Min: ${pressTh.toFixed(3)})`);
     }
 
     function drawSuccessMessage() {
