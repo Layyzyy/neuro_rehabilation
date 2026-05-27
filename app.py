@@ -1405,10 +1405,35 @@ else:
         safeSetText("instructionsText", "Hold up both hands in the camera view: one target palm (fully flat) and one pressing hand.");
         pressTimer = null;
         releaseTimer = null;
+        
         if (stage === "countdown_running") {
           cancelCountdownJS();
           stage = "waiting_press";
           playAudio("press");
+        } else if (stage === "waiting_release") {
+          // If they were waiting to release, and they pulled their hand out of view,
+          // that naturally counts as a successful release!
+          playAudio("ding");
+          
+          setTimeout(() => {
+            playAudio("goodjob");
+          }, 600);
+          
+          count++;
+          updateRepsCount(count);
+          
+          if (count >= targetReps) {
+            stage = "completed";
+            updateStatusBadge("COMPLETED!", "neon-green");
+            safeSetText("instructionsText", "Routine completed successfully! Excellent rehabilitation effort.");
+          } else {
+            stage = "waiting_press";
+            updateStatusBadge("WAITING FOR PRESS", "neon-magenta");
+            
+            setTimeout(() => {
+              playAudio("press");
+            }, 2200);
+          }
         }
       }
     }
