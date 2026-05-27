@@ -766,6 +766,20 @@ else:
   </div>
 
   <script>
+    // Global error handler to output JavaScript errors to screen for transparent debugging
+    window.addEventListener('error', function(e) {
+      console.error("Caught error:", e);
+      const subtitle = document.getElementById("overlaySubtitle");
+      if (subtitle) {
+        subtitle.innerHTML = `<div style="color:#ff3333; background: rgba(255,0,0,0.15); border: 1px solid #ff3333; padding: 10px; border-radius: 8px; margin-top: 15px; text-align: left; font-family: monospace; font-size: 12px; max-height: 150px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">
+          <strong>Javascript Error:</strong> ${e.message}<br>
+          <strong>File:</strong> ${e.filename}:${e.lineno}:${e.colno}
+        </div>` + subtitle.innerHTML;
+      }
+    });
+  </script>
+
+  <script>
     // Configuration from Streamlit
     window.CONFIG = {
         spinal_region: "__SPINAL_REGION__",
@@ -781,17 +795,25 @@ else:
   <script type="module">
     import { FilesetResolver, HandLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/vision_bundle.mjs";
 
+    // Defensive DOM Helper functions
+    function safeSetText(id, text) {
+      const el = document.getElementById(id);
+      if (el) el.innerText = text;
+    }
+
     let handLandmarker;
     let video = document.getElementById("webcam");
     let canvas = document.getElementById("canvas");
-    let ctx = canvas.getContext("2d");
+    let ctx = canvas ? canvas.getContext("2d") : null;
     let progressCircle = document.getElementById("progressCircle");
     
-    let radius = progressCircle.r.baseVal.value;
-    let circumference = radius * 2 * Math.PI;
-    
-    progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
-    progressCircle.style.strokeDashoffset = `${circumference}`;
+    let circumference = 263.89; // Default for r=42
+    if (progressCircle && progressCircle.r && progressCircle.r.baseVal) {
+      let radius = progressCircle.r.baseVal.value || 42;
+      circumference = radius * 2 * Math.PI;
+      progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
+      progressCircle.style.strokeDashoffset = `${circumference}`;
+    }
 
     // App state
     let count = 0;
@@ -825,8 +847,8 @@ else:
     }
 
     // Set labels
-    document.getElementById("panelRegion").innerText = `Spinal Region: ${spinalRegion}`;
-    document.getElementById("repsCounter").innerText = `${count} / ${targetReps}`;
+    safeSetText("panelRegion", `Spinal Region: ${spinalRegion}`);
+    safeSetText("repsCounter", `${count} / ${targetReps}`);
 
     window.activateTherapy = async function() {
       const btn = document.getElementById("startBtn");
@@ -834,10 +856,10 @@ else:
       const title = document.getElementById("overlayTitle");
       const subtitle = document.getElementById("overlaySubtitle");
       
-      btn.style.display = "none";
-      spinner.style.display = "block";
-      title.innerText = "LOADING AI MODELS...";
-      subtitle.innerText = "Fetching MediaPipe Hand Tracking WebAssembly packages from CDN...";
+      if (btn) btn.style.display = "none";
+      if (spinner) spinner.style.display = "block";
+      if (title) title.innerText = "LOADING AI MODELS...";
+      if (subtitle) subtitle.innerText = "Fetching MediaPipe Hand Tracking WebAssembly packages from CDN...";
       
       try {
         playAudio("getready");
@@ -854,36 +876,47 @@ else:
           numHands: 2
         });
         
-        title.innerText = "REQUESTING WEBCAM ACCESS...";
-        subtitle.innerText = "Please click 'Allow' on your browser's webcam permission dialog.";
+        if (title) title.innerText = "REQUESTING WEBCAM ACCESS...";
+        if (subtitle) subtitle.innerText = "Please click 'Allow' on your browser's webcam permission dialog.";
         
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: 640, height: 480 }
         });
         
-        video.srcObject = stream;
-        video.onloadeddata = () => {
-          document.getElementById("initOverlay").style.opacity = 0;
-          setTimeout(() => {
-            document.getElementById("initOverlay").style.display = "none";
-          }, 500);
-          
-          playAudio("press");
-          predictLoop();
-        };
+        if (video) {
+          video.srcObject = stream;
+          video.onloadeddata = () => {
+            const initOverlay = document.getElementById("initOverlay");
+            if (initOverlay) initOverlay.style.opacity = 0;
+            setTimeout(() => {
+              if (initOverlay) initOverlay.style.display = "none";
+            }, 500);
+            
+            playAudio("press");
+            predictLoop();
+          };
+        }
       } catch (err) {
         console.error(err);
-        spinner.style.display = "none";
-        btn.style.display = "block";
-        btn.innerText = "TRY AGAIN";
-        title.innerText = "ACTIVATION FAILED";
-        subtitle.innerText = "Error initializing camera or audio. Please ensure webcam permissions are enabled and try again.\n\nDetail: " + err.message;
+        if (spinner) spinner.style.display = "none";
+        if (btn) {
+          btn.style.display = "block";
+          btn.innerText = "TRY AGAIN";
+        }
+        if (title) title.innerText = "ACTIVATION FAILED";
+        if (subtitle) {
+          let extraMsg = "";
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            extraMsg = "\n\nNote: Camera API requires a Secure Context (HTTPS or localhost). If accessing via Network IP address (http://10.x.x.x), please use http://localhost:8501 instead.";
+          }
+          subtitle.innerText = "Error initializing camera or audio. Please ensure webcam permissions are enabled and try again.\n\nDetail: " + err.message + extraMsg;
+        }
       }
     };
 
     let lastVideoTime = -1;
     function predictLoop() {
-      if (video.currentTime !== lastVideoTime) {
+      if (video && video.currentTime !== lastVideoTime) {
         lastVideoTime = video.currentTime;
         
         const tempCanvas = document.createElement('canvas');
@@ -896,9 +929,11 @@ else:
         
         const results = handLandmarker.detectForVideo(tempCanvas, performance.now());
         
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(tempCanvas, 0, 0, canvas.width, canvas.height);
+        if (canvas && ctx) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          ctx.drawImage(tempCanvas, 0, 0, canvas.width, canvas.height);
+        }
         
         processFrame(results);
       }
@@ -907,19 +942,21 @@ else:
 
     function setProgress(percent) {
       const offset = circumference - (percent / 100) * circumference;
-      progressCircle.style.strokeDashoffset = offset;
-      document.getElementById("progressPercent").innerText = `${Math.round(percent)}%`;
+      if (progressCircle) progressCircle.style.strokeDashoffset = offset;
+      safeSetText("progressPercent", `${Math.round(percent)}%`);
     }
 
     function updateRepsCount(val) {
-      document.getElementById("repsCounter").innerText = `${val} / ${targetReps}`;
+      safeSetText("repsCounter", `${val} / ${targetReps}`);
       setProgress((val / targetReps) * 100);
     }
 
     function updateStatusBadge(text, className) {
       const badge = document.getElementById("statusBadge");
-      badge.innerText = text;
-      badge.className = `status-badge ${className}`;
+      if (badge) {
+        badge.innerText = text;
+        badge.className = `status-badge ${className}`;
+      }
     }
 
     function updateDistanceUI(dist, pressTh, releaseTh) {
@@ -927,20 +964,21 @@ else:
       const percentage = Math.min(100, (dist / maxDist) * 100);
       const fill = document.getElementById("distanceFill");
       
-      fill.style.width = `${100 - percentage}%`;
-      
-      if (dist < pressTh) {
-        fill.style.background = '#00ff00';
-      } else if (dist < releaseTh) {
-        fill.style.background = '#eab308';
-      } else {
-        fill.style.background = '#ef4444';
+      if (fill) {
+        fill.style.width = `${100 - percentage}%`;
+        if (dist < pressTh) {
+          fill.style.background = '#00ff00';
+        } else if (dist < releaseTh) {
+          fill.style.background = '#eab308';
+        } else {
+          fill.style.background = '#ef4444';
+        }
       }
       
       const targetMarker = document.getElementById("distanceTarget");
-      targetMarker.style.left = `${(1 - pressTh / maxDist) * 100}%`;
+      if (targetMarker) targetMarker.style.left = `${(1 - pressTh / maxDist) * 100}%`;
       
-      document.getElementById("distanceValue").innerText = `Alignment dist: ${dist.toFixed(3)} (Min: ${pressTh.toFixed(3)})`;
+      safeSetText("distanceValue", `Alignment dist: ${dist.toFixed(3)} (Min: ${pressTh.toFixed(3)})`;
     }
 
     function drawSuccessMessage() {
@@ -960,7 +998,7 @@ else:
     function runCountdownJS() {
       activeTimers = [];
       updateStatusBadge("HOLD STILL...", "neon-yellow");
-      document.getElementById("instructionsText").innerText = "Keep your pressing finger steady at the reflex point.";
+      safeSetText("instructionsText", "Keep your pressing finger steady at the reflex point.");
       
       playAudio("hold3sec");
       
@@ -983,7 +1021,7 @@ else:
         playAudio("release");
         stage = "waiting_release";
         updateStatusBadge("RELEASE NOW!", "neon-cyan");
-        document.getElementById("instructionsText").innerText = "Now release your finger from the palm reflex point.";
+        safeSetText("instructionsText", "Now release your finger from the palm reflex point.");
       }, 2300));
     }
 
@@ -1272,7 +1310,7 @@ else:
             } else {
               pressTimer = null;
               updateStatusBadge("WAITING FOR PRESS", "neon-magenta");
-              document.getElementById("instructionsText").innerText = "Press your index finger to the pulsing green reflex point on your " + handChoice + ".";
+              safeSetText("instructionsText", "Press your index finger to the pulsing green reflex point on your " + handChoice + ".");
             }
           } else if (stage === "countdown_running") {
             if (smoothDistance > effectiveReleaseTh) {
@@ -1292,7 +1330,7 @@ else:
               if (count >= targetReps) {
                 stage = "completed";
                 updateStatusBadge("COMPLETED!", "neon-green");
-                document.getElementById("instructionsText").innerText = "Routine completed successfully! Excellent rehabilitation effort.";
+                safeSetText("instructionsText", "Routine completed successfully! Excellent rehabilitation effort.");
               } else {
                 stage = "waiting_press";
                 pressTimer = null;
@@ -1304,7 +1342,7 @@ else:
         }
       } else {
         updateStatusBadge("SHOW BOTH PALMS", "neon-yellow");
-        document.getElementById("instructionsText").innerText = "Hold up both hands in the camera view: one target palm (fully flat) and one pressing hand.";
+        safeSetText("instructionsText", "Hold up both hands in the camera view: one target palm (fully flat) and one pressing hand.");
         pressTimer = null;
         if (stage === "countdown_running") {
           cancelCountdownJS();
