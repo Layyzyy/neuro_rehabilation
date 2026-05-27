@@ -841,7 +841,11 @@ else:
     
     function playAudio(name) {
       if (audio[name]) {
-        audio[name].currentTime = 0;
+        // Stop all other audio to prevent overlapping
+        for (const [key, sound] of Object.entries(audio)) {
+          sound.pause();
+          sound.currentTime = 0;
+        }
         audio[name].play().catch(e => console.log("Audio playback failed:", e));
       }
     }
@@ -1002,27 +1006,30 @@ else:
       
       playAudio("hold3sec");
       
+      const holdDurationMs = HOLD_TIME * 1000;
+      const startDelay = Math.max(1000, holdDurationMs * 0.4); // Allow hold3sec to start playing
+      
       activeTimers.push(setTimeout(() => {
         playAudio("3");
         updateStatusBadge("COUNTDOWN: 3", "neon-yellow");
-      }, 400));
+      }, startDelay));
       
       activeTimers.push(setTimeout(() => {
         playAudio("2");
         updateStatusBadge("COUNTDOWN: 2", "neon-yellow");
-      }, 1200));
+      }, startDelay + holdDurationMs / 3));
       
       activeTimers.push(setTimeout(() => {
         playAudio("1");
         updateStatusBadge("COUNTDOWN: 1", "neon-yellow");
-      }, 2000));
+      }, startDelay + (holdDurationMs * 2) / 3));
       
       activeTimers.push(setTimeout(() => {
         playAudio("release");
         stage = "waiting_release";
         updateStatusBadge("RELEASE NOW!", "neon-cyan");
         safeSetText("instructionsText", "Now release your finger from the palm reflex point.");
-      }, 2300));
+      }, startDelay + holdDurationMs));
     }
 
     function cancelCountdownJS() {
@@ -1323,7 +1330,12 @@ else:
           } else if (stage === "waiting_release") {
             if (smoothDistance > effectiveReleaseTh) {
               playAudio("ding");
-              playAudio("goodjob");
+              
+              // Sequence the congrats audio to prevent overlapping
+              setTimeout(() => {
+                playAudio("goodjob");
+              }, 600);
+              
               count++;
               updateRepsCount(count);
               
@@ -1334,8 +1346,12 @@ else:
               } else {
                 stage = "waiting_press";
                 pressTimer = null;
-                playAudio("press");
                 updateStatusBadge("WAITING FOR PRESS", "neon-magenta");
+                
+                // Wait for the goodjob audio to play before prompting to press again
+                setTimeout(() => {
+                  playAudio("press");
+                }, 2200);
               }
             }
           }
