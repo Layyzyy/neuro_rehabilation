@@ -5,7 +5,11 @@ import numpy as np
 import time
 import threading
 import queue
-import simpleaudio as sa
+try:
+    import simpleaudio as sa
+    HAS_AUDIO = True
+except ImportError:
+    HAS_AUDIO = False
 from PIL import Image, ImageDraw, ImageFont
 import login_component
 
@@ -28,12 +32,18 @@ with st.sidebar:
 audio_queue = queue.Queue()
 
 def audio_player():
+    if not HAS_AUDIO:
+        return
     while True:
         file = audio_queue.get()
         if file is None:
             break
-        wave = sa.WaveObject.from_wave_file(file)
-        wave.play().wait_done()
+        try:
+            wave = sa.WaveObject.from_wave_file(file)
+            wave.play().wait_done()
+        except Exception as e:
+            # Fallback gracefully if playing fails (e.g., on headless server)
+            pass
         audio_queue.task_done()
 
 threading.Thread(target=audio_player, daemon=True).start()
@@ -164,6 +174,14 @@ st.markdown("""
         color: #ffffff !important;
     }
     
+    [data-testid="stSidebar"] .stButton > button * {
+        color: #ffffff !important;
+    }
+    
+    [data-testid="stSidebar"] button {
+        color: #ffffff !important;
+    }
+    
     /* Button styling */
     .stButton > button {
         background: linear-gradient(135deg, #ff00ff 0%, #8b5cf6 100%);
@@ -244,7 +262,7 @@ st.markdown("""
 
 # ========== UI HEADER ==========
 st.markdown("# NEUROREHAB AI SYSTEM")
-st.markdown("### Spinal Reflex Palm Therapy • Press • Hold • Release")
+st.markdown('<h3 style="text-align: center;">Spinal Reflex Palm Therapy • Press • Hold • Release</h3>', unsafe_allow_html=True)
 st.markdown("---")
 
 # ---- Condition → Spinal Region Mapping (C1 to Coccyx) ----
